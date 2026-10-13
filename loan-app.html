@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loan Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1ef; --card:#ffffff; --ink:#14201e; --muted:#667470; --line:#dce2df;
+  --brand:#0f4c45; --brand-ink:#ffffff; --accent:#c8871a;
+  --ok:#1f7a4d; --ok-bg:#e0f3e8;
+  --warn:#9a6a00; --warn-bg:#fbefcf;
+  --bad:#b3261e; --bad-bg:#fbe1de;
+  --info:#2f5d9e; --info-bg:#e1ebf9;
+  --grey-bg:#e9ecea;
+  --radius:10px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:15px;line-height:1.45}
+.hidden{display:none!important}
+h1,h2,h3{margin:0;line-height:1.2}
+h1{font-size:22px;font-weight:800;letter-spacing:-.01em}
+h2{font-size:18px;font-weight:700}
+h3{font-size:14px;font-weight:700;margin:18px 0 8px}
+.muted{color:var(--muted)} .small{font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+
+/* controls */
+input,select,button{font:inherit;color:inherit}
+label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--muted)}
+input,select{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-weight:500;min-width:0;width:100%}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.btn{padding:10px 16px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-weight:700;white-space:nowrap}
+.btn:hover{background:#f6f8f7}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn.primary:hover{background:#0b3d37}
+.btn.danger{color:var(--bad);border-color:#e8b9b5}
+.btn.danger.armed{background:var(--bad);color:#fff;border-color:var(--bad)}
+.btn.small{padding:6px 10px;font-size:12.5px}
+.link{background:none;border:0;color:var(--brand);font-weight:700;cursor:pointer;padding:6px 0;text-align:left}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row.end{justify-content:flex-end;margin-top:16px}
+.grow{flex:1}
+
+/* auth */
+.auth{min-height:100vh;display:grid;place-items:center;padding:20px}
+.auth-box{width:100%;max-width:380px;background:var(--card);padding:28px;border-radius:14px;border:1px solid var(--line);display:flex;flex-direction:column;gap:14px}
+.auth-box form,.auth-box>div{display:flex;flex-direction:column;gap:14px}
+.msg{min-height:20px;font-size:13px;font-weight:600}
+.msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
+
+/* app shell */
+#app{max-width:1100px;margin:0 auto;padding:18px 14px 60px}
+.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+.syncbar{background:var(--warn-bg);color:var(--warn);padding:9px 12px;border-radius:8px;font-size:13px;font-weight:600;margin-bottom:12px}
+
+/* stats: a ruled ledger strip, not cards */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));background:var(--brand);color:var(--brand-ink);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.stat{padding:14px 16px;border-right:1px solid rgba(255,255,255,.14);border-bottom:1px solid rgba(255,255,255,.14)}
+.stat .k{font-size:12px;opacity:.75;font-weight:600}
+.stat .v{font-size:21px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
+.stat .s{font-size:11.5px;opacity:.7;margin-top:2px}
+.stat.hot .v{color:#ffd37a}
+
+.toolbar{display:grid;grid-template-columns:1fr 150px 150px;gap:8px;margin-bottom:12px}
+@media(max-width:560px){.toolbar{grid-template-columns:1fr 1fr}.toolbar input{grid-column:1/-1}}
+
+/* client list */
+.list{display:flex;flex-direction:column;gap:8px}
+.client{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr auto;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:var(--radius);padding:12px 14px;cursor:pointer}
+.client:hover{border-color:#b9c4c0}
+.client.has-overdue{border-left-color:var(--bad)}
+.client.is-closed{opacity:.72}
+.client .nm{font-weight:700}
+.client .lbl{font-size:11.5px;color:var(--muted);font-weight:600}
+.client .val{font-weight:700;font-variant-numeric:tabular-nums}
+.client .val.bad{color:var(--bad)}
+@media(max-width:720px){
+  .client{grid-template-columns:1fr 1fr}
+  .client>div:first-child{grid-column:1/-1}
+}
+.empty{background:var(--card);border:1px dashed #b9c4c0;border-radius:var(--radius);padding:30px;text-align:center;color:var(--muted)}
+
+/* badges */
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;white-space:nowrap}
+.b-Paid,.b-Active{background:var(--ok-bg);color:var(--ok)}
+.b-Partial{background:var(--info-bg);color:var(--info)}
+.b-Overdue,.b-Defaulted{background:var(--bad-bg);color:var(--bad)}
+.b-Partial-overdue{background:var(--warn-bg);color:var(--warn)}
+.b-Upcoming,.b-Closed{background:var(--grey-bg);color:var(--muted)}
+.tag{font-size:11.5px;font-weight:700;color:var(--muted);margin-left:6px}
+
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(10,20,18,.5);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;padding:20px 12px;z-index:20}
+.sheet{background:var(--card);border-radius:14px;padding:20px;width:100%;max-width:560px}
+.sheet.wide{max-width:760px}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.x{background:none;border:0;font-size:26px;line-height:1;cursor:pointer;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.grid2{grid-template-columns:1fr}}
+.preview{margin-top:14px;background:var(--bg);border-radius:8px;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.preview div span{display:block;font-size:11.5px;color:var(--muted);font-weight:600}
+.preview div b{font-variant-numeric:tabular-nums}
+
+/* detail */
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.kv div{background:#fff;padding:10px 12px}
+.kv span{display:block;font-size:11.5px;color:var(--muted);font-weight:600}
+.kv b{font-variant-numeric:tabular-nums}
+.kv .bad b{color:var(--bad)}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:700}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+.payform{display:grid;grid-template-columns:1fr 1fr 1.2fr auto;gap:8px;align-items:end}
+@media(max-width:560px){.payform{grid-template-columns:1fr 1fr}.payform .btn{grid-column:1/-1}}
+.detail-actions{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:22px;padding-top:14px;border-top:1px solid var(--line)}
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:99px;font-weight:600;font-size:14px;z-index:50;max-width:92vw;text-align:center}
+.toast.err{background:var(--bad)}
+@media(prefers-reduced-motion:no-preference){.modal{animation:fade .15s ease-out}@keyframes fade{from{opacity:0}}}
+
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="authScreen" class="auth">
+  <div class="auth-box">
+    <h1>Loan Ledger</h1>
+    <p class="muted">Sign in to see your clients.</p>
+
+    <div id="loginForm">
+      <label>Email<input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
+      <label>Password<input id="authPass" type="password" autocomplete="current-password" placeholder="At least 6 characters"></label>
+      <div class="row">
+        <button class="btn primary grow" onclick="doLogin()">Login</button>
+        <button class="btn grow" onclick="doSignup()">Create Account</button>
+      </div>
+      <button class="link" onclick="doForgot()">Forgot Password?</button>
+    </div>
+
+    <div id="recoveryForm" class="hidden">
+      <h2>Set a new password</h2>
+      <label>New password<input id="newPass" type="password" autocomplete="new-password" placeholder="At least 6 characters"></label>
+      <button class="btn primary" onclick="doSetNewPassword()">Save password</button>
+    </div>
+    <div id="authMsg" class="msg"></div>
+  </div>
+</section>
+
+<!-- ============ APP ============ -->
+<main id="app" class="hidden">
+  <header class="top">
+    <div>
+      <h1>Loan Ledger</h1>
+      <span id="userEmail" class="muted small"></span>
+    </div>
+    <div class="top-actions">
+      <button class="btn primary" onclick="openForm()">+ Add client</button>
+      <button class="btn" onclick="$('xlsxFile').click()">Import Excel</button>
+      <button class="btn" onclick="doLock()">Lock</button>
+      <input id="xlsxFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importExcel(this)">
+    </div>
+  </header>
+
+  <div id="syncBar" class="syncbar hidden"></div>
+
+  <section class="stats" id="stats"></section>
+
+  <section class="toolbar">
+    <input id="q" type="search" placeholder="Search name or phone" oninput="render()">
+    <select id="fStatus" onchange="render()">
+      <option value="">All status</option><option>Active</option><option>Closed</option><option>Defaulted</option>
+    </select>
+    <select id="fPlan" onchange="render()">
+      <option value="">All plans</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
+    </select>
+  </section>
+
+  <section id="list" class="list"></section>
+</main>
+
+<!-- ============ CLIENT FORM ============ -->
+<div id="formModal" class="modal hidden">
+  <div class="sheet">
+    <div class="sheet-head"><h2 id="formTitle">Add client</h2><button class="x" onclick="closeModal('formModal')">×</button></div>
+    <div class="grid2">
+      <label>Name<input id="f_name"></label>
+      <label>Phone<input id="f_phone" inputmode="tel"></label>
+      <label>Loan amount (₹)<input id="f_amount" type="number" min="1" step="any" oninput="previewCalc()"></label>
+      <label>Plan
+        <select id="f_plan" onchange="previewCalc()"><option value="weekly">Weekly (1% per week)</option><option value="monthly">Monthly (2% per month)</option></select>
+      </label>
+      <label><span id="f_termLabel">Weeks</span><input id="f_term" type="number" min="1" step="1" oninput="previewCalc()"></label>
+      <label>Loan start date<input id="f_start" type="date" onchange="previewCalc()"></label>
+      <label>Status
+        <select id="f_status"><option>Active</option><option>Closed</option><option>Defaulted</option></select>
+      </label>
+      <label>Note<input id="f_note"></label>
+    </div>
+    <div id="preview" class="preview"></div>
+    <div class="row end">
+      <button class="btn" onclick="closeModal('formModal')">Cancel</button>
+      <button class="btn primary" onclick="saveClient()">Save client</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CLIENT DETAIL ============ -->
+<div id="detailModal" class="modal hidden">
+  <div class="sheet wide" id="detailBody"></div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+/* =========================================================
+   Loan Ledger  –  HTML + CSS + JS + Supabase
+   1) Supabase-la schema.sql run pannunga
+   2) Keezha irukkura rendu values-a maathunga
+   ========================================================= */
+const SUPABASE_URL = 'https://udghhtketsktblvlrlddg.supabase.co';        // e.g. https://abcd1234.supabase.co
+const SUPABASE_KEY = 'sb_publishable_GfWbXdnyYYvO5s-RIWoljQ_DC_SqIFU';     // Publishable / anon key (secret key ILLA)
+
+const CONFIGURED = typeof supabase !== 'undefined' && !SUPABASE_URL.startsWith('YOUR_') && !SUPABASE_KEY.startsWith('YOUR_');
+const sb = CONFIGURED ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const $ = id => document.getElementById(id);
+
+let user = null;
+let state = { clients: [], payments: [] };
+let openId = null;          // detail modal-la irukkura client
+let recovering = false;     // password reset flow
+let cloudOk = true;
+
+/* ---------------- helpers ---------------- */
+const r2 = n => Math.round((+n + Number.EPSILON) * 100) / 100;
+const fmt = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const toISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => toISO(new Date());
+const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (iso, n) => { const d = parseISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
+// Monthly: same date each month; 31 illa-na andha maasathoda kadaisi naal
+const addMonths = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const last = new Date(y, m - 1 + n + 1, 0).getDate();
+  return toISO(new Date(y, m - 1 + n, Math.min(d, last)));
+};
+const showDate = iso => { const d = parseISO(iso); return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`; };
+const LKEY = () => 'loan_local_' + (user ? user.id : 'anon');
+
+let toastTimer;
+function toast(msg, err) {
+  const t = $('toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+/* ---------------- loan calculations ---------------- */
+function calc(c) {
+  const A = +c.amount, T = +c.term;
+  let interest, doc, cash, total;
+  if (c.plan === 'weekly') {           // 1% / week, upfront, doc charge illa
+    interest = A * 0.01 * T; doc = 0; cash = A - interest; total = A;
+  } else {                             // 2% / month, doc 3%, interest repay-oda
+    interest = A * 0.02 * T; doc = A * 0.03; cash = A - doc; total = A + interest;
+  }
+  return {
+    interest: r2(interest), doc: r2(doc), cash: r2(cash), total: r2(total),
+    emi: r2(total / T), upfront: c.plan === 'weekly' ? r2(interest) : 0
+  };
+}
+
+function schedule(c, pays) {
+  const k = calc(c);
+  const paid = r2(pays.reduce((s, p) => s + Number(p.amount), 0));
+  let rem = paid;
+  const t = today(), rows = [];
+  for (let i = 1; i <= c.term; i++) {
+    const due = c.plan === 'weekly' ? addDays(c.start_date, 7 * i) : addMonths(c.start_date, i);
+    const emi = i === +c.term ? r2(k.total - k.emi * (c.term - 1)) : k.emi;   // last installment-la paisa adjust
+    const alloc = Math.min(emi, Math.max(rem, 0)); rem -= alloc;
+    const past = due < t;
+    let st;
+    if (alloc >= emi - 0.005) st = 'Paid';
+    else if (alloc > 0.005) st = past ? 'Partial-overdue' : 'Partial';
+    else st = past ? 'Overdue' : 'Upcoming';
+    rows.push({ no: i, due, emi, alloc: r2(alloc), st });
+  }
+  const dueSum = rows.filter(r => r.due < t).reduce((s, r) => s + r.emi, 0);
+  const overdue = r2(Math.max(0, dueSum - paid));
+  const next = rows.find(r => r.st !== 'Paid');
+  return { k, rows, paid, balance: r2(Math.max(0, k.total - paid)), overdue, next };
+}
+
+const paysOf = id => state.payments.filter(p => p.client_id === id);
+const info = c => schedule(c, paysOf(c.id));
+
+/* ---------------- storage: cloud + local ---------------- */
+function saveLocal() { try { localStorage.setItem(LKEY(), JSON.stringify(state)); } catch (e) { } }
+
+function setCloudState(ok) {
+  cloudOk = ok;
+  const b = $('syncBar');
+  if (ok) { b.classList.add('hidden'); return; }
+  b.innerHTML = 'Cloud save fail aachu. Data indha device-la irukku. <button class="link" onclick="retrySync()">Retry sync</button>';
+  b.classList.remove('hidden');
+}
+
+async function cloud(promise) {
+  try {
+    const { error } = await promise;
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error(e);
+    setCloudState(false);
+    toast('Cloud save fail – data indha device-la save aachu', true);
+    return false;
+  }
+}
+
+const clientRow = c => ({
+  id: c.id, user_id: user.id, name: c.name, phone: c.phone || null, amount: +c.amount, plan: c.plan,
+  term: +c.term, start_date: c.start_date, status: c.status, note: c.note || null, created_at: c.created_at
+});
+const payRow = p => ({
+  id: p.id, user_id: user.id, client_id: p.client_id, amount: +p.amount, pay_date: p.pay_date,
+  note: p.note || null, created_at: p.created_at
+});
+
+async function upsertClient(c) {
+  saveLocal();
+  const ok = await cloud(sb.from('clients').upsert(clientRow(c)));
+  if (ok) setCloudState(true);
+  return ok;
+}
+async function upsertPayment(p) {
+  saveLocal();
+  const ok = await cloud(sb.from('payments').upsert(payRow(p)));
+  if (ok) setCloudState(true);
+  return ok;
+}
+
+async function pushAll() {
+  const cs = state.clients.map(clientRow);
+  const ps = state.payments.map(payRow);
+  for (let i = 0; i < cs.length; i += 200) {
+    const { error } = await sb.from('clients').upsert(cs.slice(i, i + 200)); if (error) throw error;
+  }
+  for (let i = 0; i < ps.length; i += 200) {
+    const { error } = await sb.from('payments').upsert(ps.slice(i, i + 200)); if (error) throw error;
+  }
+}
+async function retrySync() {
+  try { await pushAll(); setCloudState(true); toast('Cloud sync aachu'); }
+  catch (e) { console.error(e); toast('Innum cloud save aagala', true); }
+}
+
+async function loadData() {
+  let local = null;
+  try { local = JSON.parse(localStorage.getItem(LKEY()) || 'null'); } catch (e) { }
+  try {
+    const [c, p] = await Promise.all([
+      sb.from('clients').select('*').eq('user_id', user.id).order('created_at'),
+      sb.from('payments').select('*').eq('user_id', user.id)
+    ]);
+    if (c.error) throw c.error;
+    if (p.error) throw p.error;
+    if (c.data.length === 0 && local && local.clients && local.clients.length) {
+      // Mudhal login: cloud empty, local data irukku -> cloud-ku move
+      state = local;
+      await pushAll();
+      toast('Local data cloud-ku move aachu');
+    } else {
+      state = {
+        clients: c.data.map(x => ({ ...x, amount: +x.amount, term: +x.term })),
+        payments: p.data.map(x => ({ ...x, amount: +x.amount }))
+      };
+    }
+    setCloudState(true);
+  } catch (e) {
+    console.error(e);
+    state = local || { clients: [], payments: [] };
+    setCloudState(false);
+    toast('Cloud-la irundhu load aagala – local data kaattudhu', true);
+  }
+  saveLocal();
+  await autoStatusAll();
+  render();
+}
+
+/* Balance 0 -> Closed. Payment delete pannaa balance varudhu -> Active. */
+async function autoStatus(c) {
+  const bal = info(c).balance;
+  let next = c.status;
+  if (bal <= 0.005 && c.status !== 'Closed') next = 'Closed';
+  else if (bal > 0.005 && c.status === 'Closed') next = 'Active';
+  if (next !== c.status) { c.status = next; await upsertClient(c); }
+}
+async function autoStatusAll() { for (const c of state.clients) await autoStatus(c); }
+
+/* ---------------- auth ---------------- */
+function authMsg(t, type) { const m = $('authMsg'); m.textContent = t || ''; m.className = 'msg ' + (type || ''); }
+function showAuth() { $('app').classList.add('hidden'); $('authScreen').classList.remove('hidden'); }
+
+async function doLogin() {
+  const email = $('authEmail').value.trim(), password = $('authPass').value;
+  if (!email || password.length < 6) return authMsg('Email-um, minimum 6 character password-um kudunga.', 'err');
+  authMsg('Logging in…');
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) authMsg(error.message, 'err'); else authMsg('');
+}
+async function doSignup() {
+  const email = $('authEmail').value.trim(), password = $('authPass').value;
+  if (!email || password.length < 6) return authMsg('Email-um, minimum 6 character password-um kudunga.', 'err');
+  authMsg('Creating account…');
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if (error) return authMsg(error.message, 'err');
+  if (!data.session) authMsg('Account create aachu. Mail-la irukkura confirm link-a click pannunga.', 'ok');
+  else authMsg('');
+}
+async function doForgot() {
+  const email = $('authEmail').value.trim();
+  if (!email) return authMsg('Mudhal email kudunga.', 'err');
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  if (error) authMsg(error.message, 'err'); else authMsg('Reset link mail-ku anuppitten. Mail-a check pannunga.', 'ok');
+}
+async function doSetNewPassword() {
+  const pw = $('newPass').value;
+  if (pw.length < 6) return authMsg('Password minimum 6 characters irukkanum.', 'err');
+  const { data, error } = await sb.auth.updateUser({ password: pw });
+  if (error) return authMsg(error.message, 'err');
+  recovering = false;
+  history.replaceState(null, '', location.pathname);
+  toast('Pudhu password set aachu');
+  user = data.user; startApp();
+}
+async function doLock() { await sb.auth.signOut(); }
+
+if (sb) sb.auth.onAuthStateChange((event, session) => {
+  setTimeout(() => {
+    if (event === 'PASSWORD_RECOVERY') {
+      recovering = true; showAuth();
+      $('loginForm').classList.add('hidden'); $('recoveryForm').classList.remove('hidden');
+      return;
+    }
+    if (recovering && event !== 'SIGNED_OUT') return;
+    if (session) {
+      if (!user || user.id !== session.user.id) { user = session.user; startApp(); }
+    } else {
+      user = null; state = { clients: [], payments: [] };
+      closeModal('detailModal'); closeModal('formModal');
+      $('recoveryForm').classList.add('hidden'); $('loginForm').classList.remove('hidden');
+      $('authPass').value = ''; showAuth();
+    }
+  }, 0);
+});
+
+function startApp() {
+  $('authScreen').classList.add('hidden'); $('app').classList.remove('hidden');
+  $('userEmail').textContent = user.email;
+  loadData();
+}
+
+/* ---------------- render: dashboard + list ---------------- */
+function render() {
+  const rows = state.clients.map(c => ({ c, i: info(c) }));
+  const active = rows.filter(r => r.c.status === 'Active');
+  const wk = active.filter(r => r.c.plan === 'weekly'), mo = active.filter(r => r.c.plan === 'monthly');
+  const sumOver = a => r2(a.reduce((s, r) => s + r.i.overdue, 0));
+  const cntOver = a => a.filter(r => r.i.overdue > 0).length;
+
+  const collected = r2(
+    state.payments.reduce((s, p) => s + Number(p.amount), 0) +
+    rows.reduce((s, r) => s + r.i.k.upfront + r.i.k.doc, 0)
+  );
+  const lent = r2(rows.reduce((s, r) => s + Number(r.c.amount), 0));
+  const outstanding = r2(active.reduce((s, r) => s + r.i.balance, 0));
+
+  $('stats').innerHTML = `
+    <div class="stat"><div class="k">Active clients</div><div class="v">${active.length}</div><div class="s">of ${rows.length} total</div></div>
+    <div class="stat"><div class="k">Total lent</div><div class="v">${fmt(lent)}</div></div>
+    <div class="stat"><div class="k">Collected</div><div class="v">${fmt(collected)}</div><div class="s">payments + upfront interest + doc charges</div></div>
+    <div class="stat"><div class="k">Outstanding</div><div class="v">${fmt(outstanding)}</div><div class="s">active clients</div></div>
+    <div class="stat ${sumOver(wk) ? 'hot' : ''}"><div class="k">Weekly due</div><div class="v">${fmt(sumOver(wk))}</div><div class="s">${cntOver(wk)} of ${wk.length} active weekly</div></div>
+    <div class="stat ${sumOver(mo) ? 'hot' : ''}"><div class="k">Monthly due</div><div class="v">${fmt(sumOver(mo))}</div><div class="s">${cntOver(mo)} of ${mo.length} active monthly</div></div>`;
+
+  const q = $('q').value.trim().toLowerCase(), fs = $('fStatus').value, fp = $('fPlan').value;
+  const list = rows
+    .filter(r => (!q || r.c.name.toLowerCase().includes(q) || (r.c.phone || '').includes(q)) &&
+      (!fs || r.c.status === fs) && (!fp || r.c.plan === fp))
+    .sort((a, b) => (b.i.overdue - a.i.overdue) || a.c.name.localeCompare(b.c.name));
+
+  $('list').innerHTML = list.length ? list.map(({ c, i }) => `
+    <div class="client ${i.overdue > 0 && c.status === 'Active' ? 'has-overdue' : ''} ${c.status === 'Closed' ? 'is-closed' : ''}" onclick="openDetail('${c.id}')">
+      <div>
+        <div class="nm">${esc(c.name)} <span class="tag">${c.plan === 'weekly' ? 'Weekly' : 'Monthly'} · ${c.term} ${c.plan === 'weekly' ? 'wks' : 'mths'}</span></div>
+        <div class="small muted">${esc(c.phone || '')}</div>
+      </div>
+      <div><div class="lbl">Loan</div><div class="val">${fmt(c.amount)}</div></div>
+      <div><div class="lbl">Balance</div><div class="val">${fmt(i.balance)}</div></div>
+      <div><div class="lbl">Overdue</div><div class="val ${i.overdue > 0 ? 'bad' : ''}">${fmt(i.overdue)}</div></div>
+      <div><span class="badge b-${c.status}">${c.status}</span></div>
+    </div>`).join('')
+    : `<div class="empty">${state.clients.length ? 'Indha filter-ku clients illa.' : 'Clients illa. “+ Add client” click panni first loan add pannunga.'}</div>`;
+
+  if (openId && !$('detailModal').classList.contains('hidden')) renderDetail();
+}
+
+/* ---------------- modals ---------------- */
+function closeModal(id) { $(id).classList.add('hidden'); if (id === 'detailModal') openId = null; }
+['formModal', 'detailModal'].forEach(id => $(id).addEventListener('mousedown', e => { if (e.target.id === id) closeModal(id); }));
+
+/* ---------------- client form ---------------- */
+let editId = null;
+function openForm(id) {
+  editId = id || null;
+  const c = id ? state.clients.find(x => x.id === id) : null;
+  $('formTitle').textContent = c ? 'Edit client' : 'Add client';
+  $('f_name').value = c ? c.name : '';
+  $('f_phone').value = c ? c.phone || '' : '';
+  $('f_amount').value = c ? c.amount : '';
+  $('f_plan').value = c ? c.plan : 'weekly';
+  $('f_term').value = c ? c.term : '';
+  $('f_start').value = c ? c.start_date : today();
+  $('f_status').value = c ? c.status : 'Active';
+  $('f_note').value = c ? c.note || '' : '';
+  previewCalc();
+  $('formModal').classList.remove('hidden');
+  setTimeout(() => $('f_name').focus(), 50);
+}
+function formClient() {
+  return {
+    name: $('f_name').value.trim(), phone: $('f_phone').value.trim(), amount: parseFloat($('f_amount').value),
+    plan: $('f_plan').value, term: parseInt($('f_term').value, 10), start_date: $('f_start').value,
+    status: $('f_status').value, note: $('f_note').value.trim()
+  };
+}
+function previewCalc() {
+  const c = formClient();
+  $('f_termLabel').textContent = c.plan === 'weekly' ? 'Weeks' : 'Months';
+  if (!(c.amount > 0) || !(c.term >= 1)) { $('preview').innerHTML = '<div class="muted small">Amount-um term-um kudutha calculation inga theriyum.</div>'; return; }
+  const k = calc(c);
+  let html = `
+    <div><span>Cash to client</span><b>${fmt(k.cash)}</b></div>
+    <div><span>Interest</span><b>${fmt(k.interest)}</b></div>
+    <div><span>Document charge</span><b>${fmt(k.doc)}</b></div>
+    <div><span>Total to repay</span><b>${fmt(k.total)}</b></div>
+    <div><span>Each installment</span><b>${fmt(k.emi)}</b></div>`;
+  if (c.start_date) {
+    const last = c.plan === 'weekly' ? addDays(c.start_date, 7 * c.term) : addMonths(c.start_date, c.term);
+    html += `<div><span>Last due date</span><b>${showDate(last)}</b></div>`;
+  }
+  $('preview').innerHTML = html;
+}
+async function saveClient() {
+  const f = formClient();
+  if (!f.name) return toast('Name kudunga', true);
+  if (!(f.amount > 0)) return toast('Amount 0-ku mela irukkanum', true);
+  if (!(f.term >= 1)) return toast('Term (weeks/months) kudunga', true);
+  if (!f.start_date) return toast('Start date kudunga', true);
+  let c;
+  if (editId) { c = state.clients.find(x => x.id === editId); Object.assign(c, f); }
+  else { c = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...f }; state.clients.push(c); }
+  closeModal('formModal');
+  await upsertClient(c);
+  if (editId) await autoStatus(c);
+  render();
+  toast(editId ? 'Client updated' : 'Client added');
+}
+
+/* ---------------- client detail ---------------- */
+function openDetail(id) { openId = id; renderDetail(); $('detailModal').classList.remove('hidden'); }
+
+function renderDetail() {
+  const c = state.clients.find(x => x.id === openId);
+  if (!c) { closeModal('detailModal'); return; }
+  const i = info(c), k = i.k, pays = paysOf(c.id).slice().sort((a, b) => b.pay_date.localeCompare(a.pay_date));
+  const unit = c.plan === 'weekly' ? 'wk' : 'mth';
+  $('detailBody').innerHTML = `
+    <div class="sheet-head">
+      <div>
+        <h2>${esc(c.name)} <span class="badge b-${c.status}">${c.status}</span></h2>
+        <div class="small muted">${esc(c.phone || '')}${c.note ? ' · ' + esc(c.note) : ''}</div>
+      </div>
+      <button class="x" onclick="closeModal('detailModal')">×</button>
+    </div>
+
+    <div class="kv">
+      <div><span>Plan</span><b>${c.plan === 'weekly' ? 'Weekly 1%/wk' : 'Monthly 2%/mth'} × ${c.term} ${unit}</b></div>
+      <div><span>Loan amount</span><b>${fmt(c.amount)}</b></div>
+      <div><span>Start date</span><b>${showDate(c.start_date)}</b></div>
+      <div><span>Cash given</span><b>${fmt(k.cash)}</b></div>
+      <div><span>${c.plan === 'weekly' ? 'Interest (upfront)' : 'Interest'}</span><b>${fmt(k.interest)}</b></div>
+      <div><span>Document charge</span><b>${fmt(k.doc)}</b></div>
+      <div><span>Total to repay</span><b>${fmt(k.total)}</b></div>
+      <div><span>Installment</span><b>${fmt(k.emi)}</b></div>
+      <div><span>Paid</span><b>${fmt(i.paid)}</b></div>
+      <div><span>Balance</span><b>${fmt(i.balance)}</b></div>
+      <div class="${i.overdue > 0 ? 'bad' : ''}"><span>Overdue</span><b>${fmt(i.overdue)}</b></div>
+      <div><span>Next due</span><b>${i.next ? showDate(i.next.due) : '—'}</b></div>
+    </div>
+
+    <h3>Add payment</h3>
+    <div class="payform">
+      <label>Amount (₹)<input id="p_amount" type="number" min="0" step="any"></label>
+      <label>Date<input id="p_date" type="date" value="${today()}"></label>
+      <label>Note<input id="p_note"></label>
+      <button class="btn primary" onclick="addPayment()">Add payment</button>
+    </div>
+
+    <h3>Installments</h3>
+    <div class="tablewrap"><table>
+      <tr><th>#</th><th>Due date</th><th class="r">Installment</th><th class="r">Paid</th><th>Status</th></tr>
+      ${i.rows.map(r => `<tr><td>${r.no}</td><td>${showDate(r.due)}</td><td class="r">${fmt(r.emi)}</td><td class="r">${fmt(r.alloc)}</td><td><span class="badge b-${r.st}">${r.st}</span></td></tr>`).join('')}
+    </table></div>
+
+    <h3>Payments (${pays.length})</h3>
+    ${pays.length ? `<div class="tablewrap"><table>
+      <tr><th>Date</th><th class="r">Amount</th><th>Note</th><th></th></tr>
+      ${pays.map(p => `<tr><td>${showDate(p.pay_date)}</td><td class="r">${fmt(p.amount)}</td><td>${esc(p.note || '')}</td>
+        <td class="r"><button class="btn small danger" onclick="delPayment('${p.id}')">Delete</button></td></tr>`).join('')}
+    </table></div>` : '<div class="muted small">Innum payment illa.</div>'}
+
+    <div class="detail-actions">
+      <div class="row">
+        <label style="flex-direction:row;align-items:center;gap:8px">Status
+          <select onchange="setStatus('${c.id}',this.value)" style="width:auto">
+            ${['Active', 'Closed', 'Defaulted'].map(s => `<option ${s === c.status ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </label>
+        <button class="btn" onclick="closeModal('detailModal');openForm('${c.id}')">Edit</button>
+      </div>
+      <button id="delBtn" class="btn danger" onclick="armDelete('${c.id}')">Delete client</button>
+    </div>`;
+}
+
+async function addPayment() {
+  const amt = parseFloat($('p_amount').value), date = $('p_date').value;
+  if (!(amt > 0)) return toast('Amount 0-ku mela irukkanum', true);
+  if (!date) return toast('Date kudunga', true);
+  const p = {
+    id: crypto.randomUUID(), client_id: openId, amount: amt, pay_date: date,
+    note: $('p_note').value.trim(), created_at: new Date().toISOString()
+  };
+  state.payments.push(p);
+  await upsertPayment(p);
+  await autoStatus(state.clients.find(c => c.id === openId));
+  render(); toast('Payment added');
+}
+
+async function delPayment(id) {
+  if (!confirm('Indha payment-a delete pannalaama?')) return;
+  state.payments = state.payments.filter(p => p.id !== id);
+  saveLocal();
+  await cloud(sb.from('payments').delete().eq('id', id));
+  await autoStatus(state.clients.find(c => c.id === openId));
+  render(); toast('Payment deleted');
+}
+
+async function setStatus(id, status) {
+  const c = state.clients.find(x => x.id === id); c.status = status;
+  await upsertClient(c); render();
+}
+
+/* Client delete: rendu thadava click panni confirm */
+let armTimer;
+function armDelete(id) {
+  const b = $('delBtn');
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed'); b.textContent = 'Click again to confirm delete';
+    clearTimeout(armTimer);
+    armTimer = setTimeout(() => { if (b.isConnected) { b.classList.remove('armed'); b.textContent = 'Delete client'; } }, 4000);
+    return;
+  }
+  clearTimeout(armTimer);
+  deleteClient(id);
+}
+async function deleteClient(id) {
+  state.clients = state.clients.filter(c => c.id !== id);
+  state.payments = state.payments.filter(p => p.client_id !== id);   // payments-um serthu
+  saveLocal();
+  closeModal('detailModal');
+  render();
+  await cloud(sb.from('clients').delete().eq('id', id));              // payments cascade delete
+  toast('Client deleted');
+}
+
+/* ---------------- Excel import (ellaa data-vayum replace) ---------------- */
+const pick = (o, ...keys) => { for (const k of keys) if (o[k] !== undefined && String(o[k]).trim() !== '') return o[k]; return ''; };
+
+function parseDate(v) {
+  if (v instanceof Date && !isNaN(v)) return toISO(new Date(v.getTime() + 12 * 3600 * 1000));
+  const s = String(v || '').trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/);
+  if (m) return `${m[3]}-${pad(m[2])}-${pad(m[1])}`;
+  return today();
+}
+
+function importExcel(input) {
+  const file = input.files[0]; input.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+      const raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      const rows = raw.map(r => { const o = {}; for (const k in r) o[k.toString().toLowerCase().replace(/[^a-z]/g, '')] = r[k]; return o; });
+
+      const seen = new Set(), clients = []; let skipped = 0;
+      for (const o of rows) {
+        const name = String(pick(o, 'name', 'clientname', 'customername', 'customer')).trim();
+        const amount = parseFloat(String(pick(o, 'amount', 'loanamount', 'loan', 'principal')).replace(/,/g, ''));
+        const term = parseInt(pick(o, 'term', 'weeks', 'months', 'tenure', 'duration', 'period'), 10);
+        if (!name || !(amount > 0) || !(term >= 1) || seen.has(name.toLowerCase())) { skipped++; continue; }
+        seen.add(name.toLowerCase());
+        let planTxt = String(pick(o, 'plan', 'type', 'plantype')).toLowerCase();
+        const plan = planTxt ? (planTxt.startsWith('m') ? 'monthly' : 'weekly') : (o.months !== undefined && o.weeks === undefined ? 'monthly' : 'weekly');
+        const st = String(pick(o, 'status')).trim();
+        clients.push({
+          id: crypto.randomUUID(), created_at: new Date().toISOString(), name, amount, term, plan,
+          phone: String(pick(o, 'phone', 'mobile', 'phoneno', 'contact')).trim(),
+          start_date: parseDate(pick(o, 'startdate', 'date', 'loandate', 'start')),
+          status: ['Active', 'Closed', 'Defaulted'].find(s => s.toLowerCase() === st.toLowerCase()) || 'Active',
+          note: String(pick(o, 'note', 'notes', 'remarks')).trim()
+        });
+      }
+      if (!clients.length) return toast('Valid rows illa (Name, Amount, Term venum)', true);
+      if (!confirm(`${clients.length} clients import aagum, ${skipped} rows skip aagum.\n\nIppo irukkura ELLAA data-vum (clients + payments) replace aagum. Continue pannalaama?`)) return;
+
+      state = { clients, payments: [] };
+      saveLocal(); render();
+      const del = await cloud(sb.from('clients').delete().eq('user_id', user.id));
+      if (del) {
+        try { await pushAll(); setCloudState(true); } catch (err) { console.error(err); setCloudState(false); toast('Cloud save fail – data indha device-la irukku', true); return; }
+      }
+      toast(`${clients.length} clients imported`);
+    } catch (err) { console.error(err); toast('Excel read aagala: ' + err.message, true); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ---------------- init ---------------- */
+if (!CONFIGURED) {
+  showAuth();
+  authMsg(typeof supabase === 'undefined'
+    ? 'Supabase library load aagala. Internet check pannunga.'
+    : 'SUPABASE_URL & SUPABASE_KEY-a set pannunga (file-oda mela irukku).', 'err');
+}
+
+</script>
+</body>
+</html>
