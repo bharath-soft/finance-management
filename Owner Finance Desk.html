@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Owner Finance Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1ee;--card:#fff;--ink:#14231f;--mut:#5d6d67;--line:#d5ddd8;--pri:#0f4c43;--acc:#c98a12;--bad:#b3392b;--ok:#1f7a4d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1815;--card:#16241f;--ink:#e6efeb;--mut:#93a49d;--line:#2a3b35;--pri:#4fb6a3;--acc:#e0a935;--bad:#e8776a;--ok:#5cc08d}}
+:root[data-theme="dark"]{--bg:#0e1815;--card:#16241f;--ink:#e6efeb;--mut:#93a49d;--line:#2a3b35;--pri:#4fb6a3;--acc:#e0a935;--bad:#e8776a;--ok:#5cc08d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Public Sans",system-ui,sans-serif}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;margin:0;font-weight:600}
+button,input,select{font:inherit;color:inherit}
+.wrap{max-width:1000px;margin:0 auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0 16px}
+.btn{background:var(--pri);color:var(--bg);border:0;padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.bad{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+.btn:focus-visible,input:focus-visible,select:focus-visible,.row:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.stat small{color:var(--mut)}
+.stat b{display:block;font:600 24px Fraunces,Georgia,serif;margin-top:2px}
+.stat.main{background:var(--pri);color:var(--bg);border-color:var(--pri)}
+.stat.main small{color:inherit;opacity:.8}
+.bar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.bar input{flex:1;min-width:160px}
+input,select{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+.list{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.row{display:grid;grid-template-columns:2fr 1fr 1fr 90px;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;align-items:center}
+.row:last-child{border:0}.row:hover{background:var(--bg)}
+.row.h{cursor:default;color:var(--mut);font-size:13px;background:var(--bg)}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid currentColor;text-align:center}
+.tag.Active{color:var(--acc)}.tag.Closed{color:var(--ok)}.tag.Defaulted{color:var(--bad)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+label{display:block;font-size:13px;color:var(--mut);margin-bottom:3px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0}
+.kv span{color:var(--mut);font-size:13px;display:block}.kv b{font-size:17px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:380px}
+td,th{text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:500;font-size:13px}
+.empty{padding:24px;text-align:center;color:var(--mut)}
+.lock{max-width:320px;margin:20vh auto;text-align:center}
+.lock input{margin:14px 0;text-align:center;letter-spacing:6px}
+.err{color:var(--bad);min-height:20px;font-size:13px}
+@media(max-width:560px){.row{grid-template-columns:1.6fr 1fr 80px}.row .hide{display:none}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://udghhtketsktblvlrlddg.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_GfWbXdnyYYvO5s-RIWoljQ_DC_SqIFU";
+
+const supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY
+);
+</script>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+const RATES={Weekly:1,Monthly:2},DOC={Weekly:0,Monthly:3};
+const KEY="ownerFinance.v1",PINKEY="ownerFinance.pin";
+let mem={clients:[],pin:null},store=true;
+function ld(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){store=false;return null}}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){store=false}}
+let clients=ld(KEY)||[],pin=ld(PINKEY),authed=false,view="dash",sel=null,q="",passwordRecovery=false;
+const $=s=>document.querySelector(s),app=$("#app");
+const inr=n=>"₹"+Math.round(n).toLocaleString("en-IN");
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let dbc=null,synced={},syncState="local",tmr=null,currentUser=null;
+const syncText=()=>({synced:"Saved automatically to your account. Changes appear on any device you open this app on.",saving:"Saving changes...",error:"Cloud save failed. Changes are kept on this device and will retry on the next change.",local:store?"Saved on this device only.":"Saving is blocked in this browser."})[syncState];
+const badge=()=>{const b=document.getElementById("sync");if(b)b.textContent=syncState==="synced"?"Saved":syncState==="saving"?"Saving...":syncState==="error"?"Not saved to cloud":"This device only"};
+const makeId=()=>crypto.randomUUID();
+
+async function loadCloud(){
+ if(!currentUser)return;
+ syncState="saving";badge();
+ try{
+  const {data:cs,error:ce}=await supabaseClient.from("clients").select("*").eq("user_id",currentUser.id).order("created_at",{ascending:true});
+  if(ce)throw ce;
+  const ids=(cs||[]).map(c=>c.id);
+  let ps=[];
+  if(ids.length){
+   const {data:pd,error:pe}=await supabaseClient.from("payments").select("id,client_id,amount,payment_date,created_at").in("client_id",ids).order("payment_date",{ascending:true});
+   if(pe)throw pe;
+   ps=pd||[];
+  }
+  const byClient={};ps.forEach(p=>(byClient[p.client_id]??=[]).push({id:p.id,amt:Number(p.amount)||0,date:p.payment_date}));
+  if((cs||[]).length){
+   clients=cs.map(c=>({id:c.id,name:c.name||"",phone:c.phone||"",plan:c.plan||"Monthly",amount:Number(c.amount)||0,months:Number(c.months)||0,start:c.start_date||new Date().toISOString().slice(0,10),status:c.status||"Active",notes:c.notes||"",payments:byClient[c.id]||[]}));
+   sv(KEY,clients);
+  }else if(clients.length){
+   await migrateLocalData();
+   return;
+  }else{
+   clients=[];sv(KEY,clients);
+  }
+  synced={};clients.forEach(c=>synced[c.id]=JSON.stringify(c));syncState="synced";
+ }catch(e){console.error("Supabase load error",e);syncState="error";note="Cloud database error: "+(e.message||e);}
+ badge();
+}
+
+async function migrateLocalData(){
+ const old=[...clients];
+ const converted=old.map(c=>({...c,id:makeId(),payments:(c.payments||[]).map(p=>({...p,id:makeId()}))}));
+ try{
+  for(const c of converted){
+   const {error}=await supabaseClient.from("clients").insert({id:c.id,user_id:currentUser.id,name:c.name,phone:c.phone||null,plan:c.plan,amount:c.amount,months:c.months,start_date:c.start,status:c.status,notes:c.notes||null});
+   if(error)throw error;
+   for(const p of c.payments||[]){
+    const {error:pe}=await supabaseClient.from("payments").insert({id:p.id,client_id:c.id,amount:p.amt,payment_date:p.date});
+    if(pe)throw pe;
+   }
+  }
+  clients=converted;sv(KEY,clients);synced={};clients.forEach(c=>synced[c.id]=JSON.stringify(c));syncState="synced";
+  note=old.length?"Your existing local data was moved to your Supabase account.":"";
+ }catch(e){console.error("Migration error",e);syncState="error";note="Could not move local data to Supabase: "+(e.message||e);}
+ badge();
+}
+
+async function saveClientToCloud(c){
+ const {error}=await supabaseClient.from("clients").upsert({id:c.id,user_id:currentUser.id,name:c.name,phone:c.phone||null,plan:c.plan,amount:c.amount,months:c.months,start_date:c.start,status:c.status,notes:c.notes||null},{onConflict:"id"});
+ if(error)throw error;
+}
+async function savePaymentToCloud(c,p){
+ const {error}=await supabaseClient.from("payments").upsert({id:p.id,client_id:c.id,amount:p.amt,payment_date:p.date},{onConflict:"id"});
+ if(error)throw error;
+}
+async function deleteClientFromCloud(c){
+ const {error:pe}=await supabaseClient.from("payments").delete().eq("client_id",c.id);if(pe)throw pe;
+ const {error:ce}=await supabaseClient.from("clients").delete().eq("id",c.id);if(ce)throw ce;
+}
+async function deletePaymentFromCloud(id){const {error}=await supabaseClient.from("payments").delete().eq("id",id);if(error)throw error;}
+
+function save(){
+ sv(KEY,clients);
+ if(!currentUser){syncState="local";badge();return Promise.resolve();}
+ syncState="saving";badge();clearTimeout(tmr);
+ tmr=setTimeout(async()=>{
+  try{
+   for(const c of clients){const j=JSON.stringify(c);if(synced[c.id]!==j){await saveClientToCloud(c);const oldPayments=synced[c.id]?null:null;for(const p of c.payments||[])await savePaymentToCloud(c,p);synced[c.id]=j}}
+   syncState="synced";
+  }catch(e){console.error("Supabase save error",e);syncState="error";note="Cloud save failed: "+(e.message||e)}
+  badge();render();
+ },300);
+ return Promise.resolve();
+}
+
+async function initDb(){
+ if(!currentUser)return;
+ await loadCloud();
+ if(authed&&view!=="new"&&view!=="edit")render();else badge();
+}
+
+async function signOut(){
+ await supabaseClient.auth.signOut();
+ currentUser=null;authed=false;clients=[];view="dash";syncState="local";render();
+}
+
+supabaseClient.auth.onAuthStateChange(async (event,session)=>{
+ currentUser=session?.user||null;authed=!!currentUser;
+ if(event==="PASSWORD_RECOVERY"){passwordRecovery=true;view="recovery";render();return;}
+ if(currentUser){await initDb();}
+ else{clients=[];syncState="local";render();}
+});
+function dueDate(c,n){const x=new Date(c.start+"T00:00:00");if((c.plan||"Monthly")==="Weekly"){x.setDate(x.getDate()+7*n);return x}const day=x.getDate();x.setMonth(x.getMonth()+n);if(x.getDate()<day)x.setDate(0);return x}
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function calc(c){
+ const plan=c.plan||"Monthly",rate=RATES[plan],n=c.months,paid=(c.payments||[]).reduce((a,p)=>a+p.amt,0);
+ const wk=plan==="Weekly",interest=c.amount*rate/100*n,upfront=wk?interest:0,doc=c.amount*DOC[plan]/100,disb=c.amount-upfront-doc,total=wk?c.amount:c.amount+interest,emi=total/n,now=new Date();
+ let el=0;while(el<n&&dueDate(c,el+1)<=now)el++;
+ const dueNow=emi*el,overdue=Math.max(dueNow-paid,0),bal=Math.max(total-paid,0);
+ const sched=[];for(let i=1;i<=n;i++){const d=dueDate(c,i),al=Math.min(Math.max(paid-(i-1)*emi,0),emi);sched.push({i,date:iso(d),al,st:al>=emi-1?"Paid":d<=now?(al>0?"Partial, overdue":"Overdue"):(al>0?"Partial":"Upcoming")})}
+ const nx=sched.find(r=>r.st!=="Paid");
+ return{upfront,doc,disb,plan,rate,unit:plan==="Weekly"?"week":"month",interest,total,paid,bal,emi,el,dueNow,overdue,next:bal>0&&nx?nx.date:null,sched}
+}
+let note="",pending=null;
+const HEAD=["Client Name","Phone","Plan","Loan Amount (₹)","Term (weeks/months)","Start Date (YYYY-MM-DD)","Status","Notes","Interest Rate","Total Interest (₹)","Document Charge (₹)","Cash Given (₹)","Fixed Due (₹)","Paid (₹)","Balance (₹)"];
+function toISO(v){if(v instanceof Date&&!isNaN(v))return new Date(v.getTime()+43200000).toISOString().slice(0,10);const t=String(v||"").trim();if(/^\d{4}-\d{2}-\d{2}/.test(t))return t.slice(0,10);const d=new Date(t);return t&&!isNaN(d)?new Date(d.getTime()+43200000).toISOString().slice(0,10):""}
+async function exportXlsx(){
+ try{
+  if(!window.XLSX){note="Excel library did not load. Check your internet and reload.";return render()}
+  const rows=[HEAD];
+  clients.forEach((c,i)=>{const k=calc(c),r=i+2;rows.push([c.name,c.phone||"",k.plan,c.amount,c.months,c.start,c.status,c.notes||"",
+   {t:"n",v:k.rate/100,f:`IF(C${r}="Weekly",0.01,0.02)`},{t:"n",v:k.interest,f:`D${r}*I${r}*E${r}`},{t:"n",v:k.doc,f:`IF(C${r}="Monthly",D${r}*0.03,0)`},{t:"n",v:k.disb,f:`IF(C${r}="Weekly",D${r}-J${r}-K${r},D${r}-K${r})`},{t:"n",v:k.emi,f:`IF(C${r}="Weekly",D${r}/E${r},(D${r}+J${r})/E${r})`},
+   {t:"n",v:k.paid,f:`SUMIFS(Payments!$C$2:$C$5000,Payments!$A$2:$A$5000,A${r})`},{t:"n",v:k.total-k.paid,f:`IF(C${r}="Weekly",D${r}-N${r},D${r}+J${r}-N${r})`}])});
+  const pr=[["Client Name","Date (YYYY-MM-DD)","Amount (₹)"]];
+  clients.forEach(c=>(c.payments||[]).forEach(p=>pr.push([c.name,p.date,p.amt])));
+  const all=clients.map(calc),sum=a=>all.reduce((t,x)=>t+a(x),0);
+  const sm=[["Owner Finance Summary"],["Total clients",{t:"n",v:clients.length,f:"COUNTA(Clients!A2:A5000)"}],["Total invested (cash given) ₹",{t:"n",v:sum(x=>x.disb),f:"SUM(Clients!L2:L5000)"}],["Interest taken on loan dates (weekly) ₹",{t:"n",v:sum(x=>x.upfront),f:'SUMIF(Clients!C2:C5000,"Weekly",Clients!J2:J5000)'}],["Document charges ₹",{t:"n",v:sum(x=>x.doc),f:"SUM(Clients!K2:K5000)"}],["Repayments received ₹",{t:"n",v:sum(x=>x.paid),f:"SUM(Clients!N2:N5000)"}],["Total collected (interest + charges + repayments) ₹",{t:"n",v:sum(x=>x.upfront+x.doc+x.paid),f:"B4+B5+B6"}],["Balance to collect ₹",{t:"n",v:sum(x=>x.bal),f:"SUM(Clients!O2:O5000)"}]];
+  const wb=XLSX.utils.book_new();
+  const w1=XLSX.utils.aoa_to_sheet(sm);w1["!cols"]=[{wch:44},{wch:16}];
+  const w2=XLSX.utils.aoa_to_sheet(rows);w2["!cols"]=[22,14,10,14,12,16,11,26,10,14,14,14,13,12,13].map(wch=>({wch}));
+  const w3=XLSX.utils.aoa_to_sheet(pr);w3["!cols"]=[{wch:24},{wch:18},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,w1,"Summary");XLSX.utils.book_append_sheet(wb,w2,"Clients");XLSX.utils.book_append_sheet(wb,w3,"Payments");
+  wb.Workbook={CalcPr:{fullCalcOnLoad:true}};
+  const out=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+  const blob=new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="Finance-Sheet.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  note="Excel file downloaded. Edit it, then use Import from Excel to load changes back.";render();
+ }catch(e){note=e&&e.code==="declined"?"Download cancelled.":"Could not save the file: "+esc(e&&e.message||e);render()}
+}
+function importXlsx(f){
+ if(!window.XLSX){note="Excel library did not load. Check your internet and reload.";return render()}
+ const rd=new FileReader();
+ rd.onload=()=>{try{
+  const wb=XLSX.read(rd.result,{type:"array",cellDates:true});
+  const cs=wb.Sheets["Clients"],ps=wb.Sheets["Payments"];
+  if(!cs){note="This file has no Clients sheet. Use the Finance-Sheet.xlsx layout.";pending=null;return render()}
+  const cr=XLSX.utils.sheet_to_json(cs,{header:1,raw:true,defval:""}).slice(1),pr=ps?XLSX.utils.sheet_to_json(ps,{header:1,raw:true,defval:""}).slice(1):[];
+  const out=[],by={};let skip=0;
+  cr.forEach(r=>{const name=String(r[0]).trim();if(!name)return;const amount=+r[3],months=Math.round(+r[4]);
+   if(!(amount>0)||!(months>0)||by[name.toLowerCase()]){skip++;return}
+   const c={id:makeId(),name,phone:String(r[1]).trim(),plan:/week/i.test(r[2])?"Weekly":"Monthly",amount,months,start:toISO(r[5])||new Date().toISOString().slice(0,10),status:["Active","Closed","Defaulted"].includes(String(r[6]).trim())?String(r[6]).trim():"Active",notes:String(r[7]).trim(),payments:[]};
+   out.push(c);by[name.toLowerCase()]=c});
+  let pc=0;pr.forEach(r=>{const c=by[String(r[0]).trim().toLowerCase()],a=+r[2];if(!c||!(a>0)){if(String(r[0]).trim())skip++;return}c.payments.push({id:makeId(),amt:a,date:toISO(r[1])||new Date().toISOString().slice(0,10)});pc++});
+  if(!out.length){note="No valid client rows found. Each row needs a name, loan amount and term.";pending=null;return render()}
+  pending=out;note="Found "+out.length+" clients and "+pc+" payments"+(skip?" ("+skip+" rows skipped: missing data or duplicate names)":"")+". Importing replaces everything now in the app.";render();
+ }catch(e){note="Could not read this file: "+esc(e.message);pending=null;render()}};
+ rd.readAsArrayBuffer(f);
+}
+function render(){
+ try{renderInner()}catch(e){app.innerHTML='<div class="panel"><h2>Error</h2><p class="err">'+esc(e.message)+'</p></div>'}
+}
+function renderInner(){
+ if(passwordRecovery)return recoveryView();
+ if(!authed)return lock();
+ if(view==="dash")return dash();
+ if(view==="sheet")return sheetView();
+ if(view==="new"||view==="edit")return form();
+ if(view==="client")return detail();
+}
+function recoveryView(){
+ app.innerHTML=`<div class="lock"><h1>Choose a new password</h1><p style="color:var(--mut)">Enter and confirm your new password.</p><input id="newPassword" type="password" placeholder="New password" autocomplete="new-password" style="letter-spacing:0"><input id="confirmPassword" type="password" placeholder="Confirm password" autocomplete="new-password" style="letter-spacing:0"><div class="err" id="recoveryErr"></div><button type="button" class="btn" id="savePassword" style="width:100%;margin-top:10px">Update password</button></div>`;
+ const error=$("#recoveryErr"),button=$("#savePassword");
+ button.onclick=async()=>{
+  error.textContent="";
+  const password=$("#newPassword").value,confirm=$("#confirmPassword").value;
+  if(password.length<6){error.textContent="Password must be at least 6 characters.";return}
+  if(password!==confirm){error.textContent="Passwords do not match.";return}
+  button.disabled=true;button.textContent="Updating…";
+  try{
+   const {error:authError}=await supabaseClient.auth.updateUser({password});
+   if(authError)throw authError;
+   await supabaseClient.auth.signOut();
+   passwordRecovery=false;currentUser=null;authed=false;view="dash";render();
+   $("#err").textContent="Password updated. Log in with your new password.";
+  }catch(e){error.textContent="Could not update password: "+e.message;button.disabled=false;button.textContent="Update password"}
+ };
+}
+function lock(){
+  app.innerHTML=`
+    <div class="lock">
+      <h1>Owner Finance Desk</h1>
+
+      <p style="color:var(--mut)">
+        Login to access your Finance Dashboard
+      </p>
+
+      <input
+        id="email"
+        type="email"
+        placeholder="Email address"
+        autocomplete="email"
+      >
+
+      <input
+        id="password"
+        type="password"
+        placeholder="Password"
+        autocomplete="current-password"
+        style="letter-spacing:0"
+      >
+
+      <div class="err" id="err"></div>
+
+      <button
+        type="button"
+        class="btn"
+        id="login"
+        style="width:100%;margin-top:10px">
+        Login
+      </button>
+
+      <button
+        type="button"
+        class="btn ghost"
+        id="signup"
+        style="width:100%;margin-top:8px">
+        Create Account
+      </button>
+
+      <button
+        type="button"
+        class="btn ghost"
+        id="forgot"
+        style="width:100%;margin-top:8px">
+        Forgot Password?
+      </button>
+    </div>
+  `;
+
+
+  const email=$("#email");
+  const password=$("#password");
+  const err=$("#err");
+  const forgot=$("#forgot");
+  forgot.addEventListener("click",async()=>{
+    err.textContent="";
+  const e=email.value.trim();
+
+  if(!e){
+    err.textContent="Enter your email address first.";
+    email.focus();
+    return;
+  }
+
+  forgot.disabled=true;
+  forgot.textContent="Sending reset link...";
+  try{
+    const options=window.location.protocol==="http:"||window.location.protocol==="https:"
+      ?{redirectTo:window.location.origin+window.location.pathname}:{};
+    const {error}=await supabaseClient.auth.resetPasswordForEmail(e,options);
+
+    if(error){
+      err.textContent=error.message;
+      forgot.disabled=false;
+      forgot.textContent="Forgot Password?";
+      return;
+    }
+
+    err.textContent="Password reset link sent. Check your email.";
+  }catch(error){
+    err.textContent="Reset failed: "+error.message;
+    forgot.disabled=false;
+    forgot.textContent="Forgot Password?";
+  }
+  });
+
+  $("#login").addEventListener("click",async()=>{
+    err.textContent="";
+
+    const e=email.value.trim();
+    const p=password.value;
+
+    if(!e || !p){
+      err.textContent="Enter your email and password.";
+      return;
+    }
+
+    try{
+      const {data,error}=await supabaseClient.auth.signInWithPassword({
+        email:e,
+        password:p
+      });
+
+      if(error){
+        err.textContent=error.message;
+        return;
+      }
+
+      if(data.user){
+        authed=true;
+        view="dash";
+        render();
+      }
+
+    }catch(error){
+      err.textContent="Login failed: "+error.message;
+    }
+  });
+
+  $("#signup").addEventListener("click",async()=>{
+    err.textContent="";
+
+    const e=email.value.trim();
+    const p=password.value;
+
+    if(!e || !p){
+      err.textContent="Enter an email and password.";
+      return;
+    }
+
+    if(p.length<6){
+      err.textContent="Password must be at least 6 characters.";
+      return;
+    }
+
+    try{
+      const {data,error}=await supabaseClient.auth.signUp({
+        email:e,
+        password:p
+      });
+
+      if(error){
+        err.textContent=error.message;
+        return;
+      }
+
+      if(data.session){
+        authed=true;
+        view="dash";
+        render();
+      }else{
+        err.textContent=
+          "Account created. Check your email and confirm your email address, then login.";
+      }
+
+    }catch(error){
+      err.textContent="Signup failed: "+error.message;
+    }
+  });
+
+  setTimeout(()=>{
+    try{
+      email.focus();
+    }catch(e){}
+  },50);
+}
+function head(){return `<header><h1>Owner Finance Desk</h1><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="sync" style="color:var(--mut);font-size:13px"></span><button class="btn ghost" id="nv1">Dashboard</button><button class="btn ghost" id="nv2">Excel sheet</button><button class="btn ghost" id="lk">Lock</button></div></header>`}
+function bind(){badge();const l=$("#lk");if(l)l.onclick=()=>{signOut()};const a=$("#nv1"),b=$("#nv2");if(a)a.onclick=()=>{view="dash";note="";pending=null;render()};if(b)b.onclick=()=>{view="sheet";note="";pending=null;render()}}
+function dash(){
+ const all=clients.map(c=>({c,...calc(c)}));
+ const wdue=all.filter(x=>x.c.status==="Active"&&x.plan==="Weekly").reduce((a,x)=>a+x.emi,0),mdue=all.filter(x=>x.c.status==="Active"&&x.plan==="Monthly").reduce((a,x)=>a+x.emi,0),od=all.reduce((a,x)=>a+x.overdue,0);
+ const inv=all.reduce((a,x)=>a+x.disb,0),paid=all.reduce((a,x)=>a+x.paid+x.upfront+x.doc,0),docs=all.reduce((a,x)=>a+x.doc,0),bal=all.reduce((a,x)=>a+x.bal,0),intr=all.reduce((a,x)=>a+x.interest,0);
+ const act=clients.filter(c=>c.status==="Active").length;
+ const list=clients.filter(c=>c.name.toLowerCase().includes(q.toLowerCase()));
+ app.innerHTML=head()+`
+ <div class="stats">
+  <div class="stat main"><small>Total invested (cash given to clients)</small><b>${inr(inv)}</b></div>
+  <div class="stat"><small>Collected so far</small><b>${inr(paid)}</b></div>
+  <div class="stat"><small>Document charges (taken on loan date)</small><b>${inr(docs)}</b></div>
+  <div class="stat"><small>Balance to collect</small><b>${inr(bal)}</b></div>
+  <div class="stat"><small>Expected interest</small><b>${inr(intr)}</b></div>
+  <div class="stat"><small>Weekly dues (active)</small><b>${inr(wdue)}</b></div>
+  <div class="stat"><small>Monthly dues (active)</small><b>${inr(mdue)}</b></div>
+  <div class="stat"><small>Overdue now</small><b style="color:${od?"var(--bad)":"var(--ok)"}">${inr(od)}</b></div>
+  <div class="stat"><small>Clients (active)</small><b>${clients.length} (${act})</b></div>
+ </div>
+ <div class="bar"><input id="q" placeholder="Search client name" value="${esc(q)}" aria-label="Search clients"><button class="btn" id="add">Add new client</button><button class="btn ghost" id="ex">Export to Excel</button><button class="btn ghost" id="im">Import from Excel</button><input type="file" id="fi" accept=".xlsx,.xls" hidden></div>
+ ${note?`<div class="panel" role="status">${note}${pending?` <div class="bar" style="margin:10px 0 0"><button class="btn" id="yes">Replace app data with this sheet</button><button class="btn ghost" id="no2">Cancel</button></div>`:""}</div>`:""}
+ <div class="list"><div class="row h"><span>Client</span><span class="hide">Fixed due</span><span>Balance</span><span>Status</span></div>
+ ${list.length?list.map(c=>{const k=calc(c);return `<div class="row" tabindex="0" data-id="${c.id}"><b>${esc(c.name)}</b><span class="hide">${inr(k.emi)}/${k.plan==="Weekly"?"wk":"mo"}</span><span>${inr(k.bal)}</span><span class="tag ${c.status}">${c.status}</span></div>`}).join(""):`<div class="empty">${clients.length?"No client matches that name.":"No clients yet. Add your first client to start tracking loans."}</div>`}
+ </div>
+ <p style="color:var(--mut);font-size:13px">${syncText()}</p>`;
+ bind();
+ $("#add").onclick=()=>{view="new";render()};
+ $("#ex").onclick=exportXlsx;$("#im").onclick=()=>$("#fi").click();
+ $("#fi").onchange=e=>{const f=e.target.files[0];if(f)importXlsx(f)};
+ const y=$("#yes");if(y){y.onclick=()=>{clients=pending;pending=null;note="Imported. App data now matches your Excel sheet.";save();render()};$("#no2").onclick=()=>{pending=null;note="";render()}}
+ const qi=$("#q");qi.oninput=()=>{q=qi.value;const p=qi.selectionStart;dash();const n=$("#q");n.focus();n.setSelectionRange(p,p)};
+ document.querySelectorAll(".row[data-id]").forEach(r=>{const o=()=>{sel=r.dataset.id;view="client";render()};r.onclick=o;r.onkeydown=e=>e.key==="Enter"&&o()});
+}
+function sheetView(){
+ const all=clients.map(c=>({c,...calc(c)}));
+ const pr=[];clients.forEach(c=>(c.payments||[]).forEach(p=>pr.push([c.name,p.date,p.amt])));pr.sort((a,b)=>b[1].localeCompare(a[1]));
+ const n=v=>inr(v);
+ app.innerHTML=head()+`<div class="bar"><button class="btn" id="ex">Download as Excel file</button></div>
+ ${note?`<div class="panel" role="status">${note}</div>`:""}
+ <p style="color:var(--mut);margin:0 0 12px">This sheet updates by itself whenever you add a client, change loan details or record a payment.</p>
+ <h3 style="margin-bottom:8px">Clients</h3>
+ <div class="list scroll"><table style="min-width:1200px"><tr>${HEAD.map(h=>`<th>${h}</th>`).join("")}</tr>
+ ${all.length?all.map(x=>`<tr><td><b>${esc(x.c.name)}</b></td><td>${esc(x.c.phone||"")}</td><td>${x.plan}</td><td>${n(x.c.amount)}</td><td>${x.c.months}</td><td>${x.c.start}</td><td>${x.c.status}</td><td>${esc(x.c.notes||"")}</td><td>${x.rate}%</td><td>${n(x.interest)}</td><td>${n(x.doc)}</td><td>${n(x.disb)}</td><td>${n(x.emi)}</td><td>${n(x.paid)}</td><td>${n(x.total-x.paid)}</td></tr>`).join(""):`<tr><td colspan="15" class="empty">No clients yet.</td></tr>`}
+ </table></div>
+ <h3 style="margin:18px 0 8px">Payments</h3>
+ <div class="list scroll"><table><tr><th>Client Name</th><th>Date</th><th>Amount (₹)</th></tr>${pr.length?pr.map(r=>`<tr><td>${esc(r[0])}</td><td>${r[1]}</td><td>${n(r[2])}</td></tr>`).join(""):`<tr><td colspan="3" class="empty">No payments yet.</td></tr>`}</table></div>`;
+ bind();$("#ex").onclick=exportXlsx;
+}
+function form(){
+ const e=view==="edit"?clients.find(c=>c.id===sel):{name:"",phone:"",amount:"",months:"",plan:"Monthly",start:new Date().toISOString().slice(0,10),status:"Active",notes:""};
+ const pl=e.plan||"Monthly";
+ app.innerHTML=head()+`<div class="panel"><h2>${view==="edit"?"Update loan details":"Add new client"}</h2><div class="grid" style="margin-top:14px">
+ <div><label for="n">Client name</label><input id="n" value="${esc(e.name)}"></div>
+ <div><label for="p">Phone</label><input id="p" inputmode="tel" value="${esc(e.phone)}"></div>
+ <div><label for="pl">Payment plan</label><select id="pl">${["Weekly","Monthly"].map(x=>`<option ${x===pl?"selected":""}>${x}</option>`).join("")}</select></div>
+ <div><label for="a">Loan amount (₹)</label><input id="a" type="number" min="1" value="${e.amount}"></div>
+ <div><label for="m" id="ml">Number of months</label><input id="m" type="number" min="1" value="${e.months}"></div>
+ <div><label>Interest rate</label><input id="iv" disabled></div>
+ <div><label id="dl">Due amount (auto)</label><input id="mdv" disabled placeholder="Calculated from amount and term"></div>
+ <div><label for="s">Start date</label><input id="s" type="date" value="${e.start}"></div>
+ <div><label for="st">Status</label><select id="st">${["Active","Closed","Defaulted"].map(x=>`<option ${x===e.status?"selected":""}>${x}</option>`).join("")}</select></div>
+ <div><label for="no">Notes</label><input id="no" value="${esc(e.notes||"")}"></div></div>
+ <p id="pv" style="color:var(--mut);margin:12px 0 0"></p><div class="err" id="err" style="margin-top:6px"></div>
+ <div class="bar"><button class="btn" id="sv">Save ${view==="edit"?"changes":"client"}</button><button class="btn ghost" id="cn">Cancel</button></div></div>`;
+ bind();
+ const pv=()=>{const plan=$("#pl").value,r=RATES[plan],wk=plan==="Weekly",u=wk?"week":"month",a=+$("#a").value,m=+$("#m").value;
+  $("#ml").textContent="Number of "+u+"s";$("#iv").value=r+"% per "+u+(DOC[plan]?" + "+DOC[plan]+"% one-time document charge":"")+" (fixed)";$("#dl").textContent=plan+" due (auto)";
+  let t="",d="";if(a>0&&m>0){const it=a*r/100*m;const dc=a*DOC[plan]/100;
+   if(wk){d=inr(a/m)+" per "+u;t="Interest "+inr(a*r/100)+" per week x "+m+" = "+inr(it)+" is deducted on the loan date and marked paid. Client receives "+inr(a-it)+". Repay "+inr(a)+"."+(it>=a?" Interest is too high for this term.":"")}
+   else{const tot=a+it;d=inr(tot/m)+" per "+u;t="Interest "+inr(a*r/100)+" per month x "+m+" = "+inr(it)+" is added to the dues. Document charge "+inr(dc)+" ("+DOC[plan]+"% of loan) is deducted once on the loan date. Client receives "+inr(a-dc)+". Total payable "+inr(tot)+"."}}
+  $("#pv").textContent=t;$("#mdv").value=d};
+ ["a","m"].forEach(i=>$("#"+i).addEventListener("input",pv));$("#pl").addEventListener("change",pv);pv();
+ $("#cn").onclick=()=>{view=view==="edit"?"client":"dash";render()};
+ $("#sv").onclick=()=>{
+  const d={name:$("#n").value.trim(),phone:$("#p").value.trim(),plan:$("#pl").value,amount:+$("#a").value,months:+$("#m").value,start:$("#s").value,status:$("#st").value,notes:$("#no").value.trim()};
+  if(d.amount>0&&d.months>0&&d.plan==="Weekly"&&d.amount*RATES[d.plan]*d.months/100>=d.amount){$("#err").textContent="Interest for this term is as much as the loan. Reduce the number of "+(d.plan==="Weekly"?"weeks":"months")+".";return}
+  if(!d.name||!(d.amount>0)||!(d.months>0)||!d.start){$("#err").textContent="Enter client name, loan amount, number of weeks or months, and start date.";return}
+  if(clients.some(x=>x.id!==e.id&&x.name.toLowerCase()===d.name.toLowerCase())){$("#err").textContent="A client with this name already exists. Use a different name (Excel links payments by name).";return}
+  if(view==="edit"){Object.assign(e,d)}else{const c={id:makeId(),payments:[],...d};clients.push(c);sel=c.id}
+  save();view="client";render();
+ };
+}
+function detail(){
+ const c=clients.find(x=>x.id===sel);if(!c){view="dash";return render()}
+ const k=calc(c),pays=[...(c.payments||[])].sort((a,b)=>b.date.localeCompare(a.date)),u=k.unit,col=t=>t==="Paid"?"var(--ok)":t.includes("overdue")||t==="Overdue"?"var(--bad)":"var(--mut)";
+ app.innerHTML=head()+`<button class="btn ghost" id="bk">Back to dashboard</button>
+ <div class="panel" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><h2>${esc(c.name)}</h2><span style="color:var(--mut)">${esc(c.phone||"No phone added")}</span></div><span class="tag ${c.status}" style="align-self:flex-start">${c.status}</span></div>
+ <div class="kv"><div><span>Loan amount</span><b>${inr(c.amount)}</b></div>${k.upfront?`<div><span>Interest deducted on loan date</span><b>${inr(k.upfront)}</b></div>`:`<div><span>Interest (added to dues)</span><b>${inr(k.interest)}</b></div>`}${k.doc?`<div><span>Document charge (${DOC[k.plan]}%, one time)</span><b>${inr(k.doc)}</b></div>`:""}<div><span>Cash given to client</span><b>${inr(k.disb)}</b></div><div><span>Plan</span><b>${k.plan}</b></div><div><span>Interest rate</span><b>${k.rate}% / ${u}</b></div><div><span>Term</span><b>${c.months} ${u}s</b></div><div><span>Start date</span><b>${c.start}</b></div>
+ <div><span>${k.upfront?"Total to repay":"Total payable (loan + interest)"}</span><b>${inr(k.total)}</b></div><div><span>Fixed due per ${u}</span><b>${inr(k.emi)}</b></div><div><span>${u[0].toUpperCase()+u.slice(1)}s passed</span><b>${k.el} of ${c.months}</b></div><div><span>Due till now</span><b>${inr(k.dueNow)}</b></div><div><span>Overdue</span><b style="color:${k.overdue?"var(--bad)":"var(--ok)"}">${inr(k.overdue)}</b></div><div><span>Paid so far</span><b>${inr(k.paid)}</b></div><div><span>Balance</span><b style="color:${k.bal?"var(--acc)":"var(--ok)"}">${inr(k.bal)}</b></div><div><span>Next due date</span><b>${k.next||"None"}</b></div></div>
+ ${c.notes?`<p style="color:var(--mut)">Notes: ${esc(c.notes)}</p>`:""}
+ <div class="bar"><button class="btn" id="ed">Update loan details</button><button class="btn bad" id="dl">Delete client</button></div></div>
+ <div class="panel"><h3>Payments received</h3><p style="color:var(--mut);margin:6px 0 0">Fixed due is ${inr(k.emi)} per ${u}. Payments fill the ${u}ly dues in order.</p>
+ <div class="grid" style="margin:12px 0"><div><label for="pa">Amount (₹)</label><input id="pa" type="number" min="1" value="${Math.round(k.emi)}"></div><div><label for="pd">Date</label><input id="pd" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div style="align-self:end"><button class="btn" id="ap" style="width:100%">Record payment</button></div></div>
+ <h3 style="font-size:16px;margin-top:8px">Due schedule</h3>
+ <div class="scroll"><table><tr><th>#</th><th>Due date</th><th>Due</th><th>Paid</th><th>Status</th></tr>${k.upfront?`<tr><td>0</td><td>${c.start}</td><td>${inr(k.upfront)} interest</td><td>${inr(k.upfront)}</td><td style="color:var(--ok)">Paid (loan date)</td></tr>`:""}${k.doc?`<tr><td>0</td><td>${c.start}</td><td>${inr(k.doc)} document charge</td><td>${inr(k.doc)}</td><td style="color:var(--ok)">Paid (loan date)</td></tr>`:""}${k.sched.map(r=>`<tr><td>${r.i}</td><td>${r.date}</td><td>${inr(k.emi)}</td><td>${inr(r.al)}</td><td style="color:${col(r.st)}">${r.st}</td></tr>`).join("")}</table></div>
+ <h3 style="font-size:16px;margin-top:18px">Payment history</h3>
+ <div class="scroll">${pays.length?`<table><tr><th>Date</th><th>Amount</th><th></th></tr>${pays.map(p=>`<tr><td>${p.date}</td><td>${inr(p.amt)}</td><td><button class="btn ghost" data-p="${p.id}">Remove</button></td></tr>`).join("")}</table>`:`<div class="empty">No payments recorded yet.</div>`}</div></div>`;
+ bind();
+ $("#bk").onclick=()=>{view="dash";render()};
+ $("#ed").onclick=()=>{view="edit";render()};
+ let armed=false;$("#dl").onclick=function(){if(!armed){armed=true;this.textContent="Click again to confirm delete";return}clients=clients.filter(x=>x.id!==c.id);save();if(currentUser){deleteClientFromCloud(c).catch(e=>{syncState="error";note="Cloud delete failed: "+(e.message||e);badge()})}view="dash";render()};
+ $("#ap").onclick=()=>{const a=+$("#pa").value,d=$("#pd").value;if(!(a>0)||!d)return;(c.payments=c.payments||[]).push({id:makeId(),amt:a,date:d});if(calc(c).bal<=0)c.status="Closed";save();render()};
+ document.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{const old=c.payments.find(p=>p.id===b.dataset.p);c.payments=c.payments.filter(p=>p.id!==b.dataset.p);save();if(currentUser&&old)deletePaymentFromCloud(old.id).catch(e=>{syncState="error";note="Cloud payment delete failed: "+(e.message||e);badge()});render()});
+}
+supabaseClient.auth.getSession().then(({data})=>{
+ currentUser=data.session?.user||null;authed=!!currentUser;
+ if(currentUser){initDb();}else{render();}
+});
+</script>
+</body>
+</html>
